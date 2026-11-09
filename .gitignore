@@ -17,3 +17,9 @@ recordings/
 .env*.local
 
 .DS_Store
+
+# Unitree Go2 model, downloaded by scripts/fetch_go2_model.sh
+frontend/public/go2/
+
+# Khronos sample glTF models, downloaded by scripts/fetch_object_models.sh
+frontend/public/models/

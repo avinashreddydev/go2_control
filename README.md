@@ -27,6 +27,55 @@ Set the robot IP in `backend/config.py`.
   `move` (F/B/L/R tokens), `navigate` (VLA loop), `speak`, `stop`.
   `move` and `navigate` need an Approve click in the chat before the robot moves.
 
+## 3D avatar
+
+The left sidebar shows the official Unitree Go2 model (three.js + `urdf-loader`). The model
+files are not in git; download them once (about 25 MB, BSD-3, from
+`unitreerobotics/unitree_ros`):
+
+```
+./scripts/fetch_go2_model.sh      # -> frontend/public/go2/
+```
+
+When the robot is connected, the avatar's legs follow the 12 live motor angles and its body
+follows odometry (`GET /robot/state3d`). Offline, it stands and breathes. Expand it to full
+screen with the ⤢ button.
+
+## Semantic objects in 3D
+
+With the optional vision stack installed, the backend runs YOLOE (prompt-free, about 4,500
+classes) on the camera about 4 times a second (about 30 ms per frame on an Apple GPU). It
+places each detected person or object in the 3D view:
+
+- **Direction:** the box's position in the image (front camera, pinhole model).
+- **Distance:** the lidar voxels inside the box. Without lidar, the box's bottom edge on a
+  flat floor.
+- **Tracking:** objects are tracked in world coordinates with stable IDs and dropped
+  after 2 s unseen.
+
+```
+uv pip install --python .venv/bin/python -r requirements-vision.txt
+./scripts/fetch_yolo_weights.sh
+```
+
+`GET /world/objects` lists them, and `POST /world/toggle` pauses the loop.
+
+Objects are drawn with real glTF models where one fits the label: person, chair, sofa,
+plant, vase, cup, bottle, traffic cone, and dog/cat. Anything else is a labelled block.
+Each model is sized from the detection: its measured height (or width, if the box was cut
+off), held to a realistic range for that kind of object. People and pets walk while they
+move. Download the models once (about 30 MB, Khronos glTF samples, CC0/CC-BY; credits in
+`frontend/public/models/CREDITS.md`):
+
+```
+./scripts/fetch_object_models.sh
+```
+
+The lidar map leaves out the floor: its height is measured from the lowest voxels, and
+anything within 8 cm of it is skipped. The 3D view's **Objects** and **Voxels**
+toggles show or hide each layer. Camera numbers are estimates: set `CAMERA_HFOV_DEG` and
+`CAMERA_PITCH_DEG` in `.env` once calibrated.
+
 ## Voice: "Hey Boxy"
 
 Open the **Voice** card on the dashboard:

@@ -61,6 +61,18 @@ TELEOP_KEYS = {
 }
 
 
+# Upper bound on voxels sent to the 3D view per update (~360 KB as float32)
+LIDAR_MAX_POINTS = 30000
+
+# Unitree motor order in LOW_STATE.motor_state: FR, FL, RR, RL legs, each
+# hip/thigh/calf. Named as the joints in the go2_description URDF.
+LEG_JOINTS = [
+    f"{leg}_{part}_joint"
+    for leg in ("FR", "FL", "RR", "RL")
+    for part in ("hip", "thigh", "calf")
+]
+
+
 class RobotClient:
     def __init__(self, conn: UnitreeWebRTCConnection):
         self.conn = conn
@@ -78,8 +90,14 @@ class RobotClient:
         self._mic_callbacks: list = []
         self._speaking_until = 0.0
         self.battery_soc: int | None = None
+        # 12 leg joint angles (rad) by URDF joint name, for the 3D avatar
+        self.joint_q: dict[str, float] | None = None
+        self.joints_at: float | None = None
         self.battery_at: float | None = None
         self.lidar_rays: list[dict[str, float]] = []
+        # Latest lidar voxel map: occupied 5 cm voxel centres, world (odom)
+        # frame, float32 N x 3. Drawn as the 3D world around the avatar.
+        self.lidar_points: np.ndarray | None = None
         self.lidar_at: float | None = None
         self.robot_pose: dict | None = None
         self._keys_lock = threading.Lock()
@@ -245,6 +263,14 @@ class RobotClient:
 
         return -left, fwd
 
+    @staticmethod
+    def _cap_points(pts: np.ndarray) -> np.ndarray:
+        """ float32 copy, evenly thinned past LIDAR_MAX_POINTS to keep the UI fast """
+        if len(pts) > LIDAR_MAX_POINTS:
+            step = int(np.ceil(len(pts) / LIDAR_MAX_POINTS))
+            pts = pts[::step]
+        return np.ascontiguousarray(pts, dtype=np.float32)
+
     def _points_to_rays(self, x: np.ndarray, y: np.ndarray) -> list[dict[str, float]]:
         r = np.hypot(x, y)
         mask = (r >= LIDAR_MIN_RANGE_M) & (r <= LIDAR_RANGE_M)
@@ -277,6 +303,7 @@ class RobotClient:
         pts = self._extract_lidar_points(outer, decoded)
         if pts is None:
             return
+        self.lidar_points = self._cap_points(pts)
 
         robot_xy = self._world_to_robot_xy(pts)
         if robot_xy is None:
@@ -319,6 +346,16 @@ class RobotClient:
         if isinstance(soc, (int, float)) and 0 <= soc <= 100:
             self.battery_soc = int(soc)
             self.battery_at = time.time()
+
+        motors = data.get("motor_state") or []
+        if len(motors) >= len(LEG_JOINTS):
+            try:
+                self.joint_q = {
+                    name: float(motors[i]["q"]) for i, name in enumerate(LEG_JOINTS)
+                }
+                self.joints_at = time.time()
+            except (KeyError, TypeError, ValueError):
+                pass
 
     # ----- Vision -----
     async def receive_video_frame(self, track: MediaStreamTrack) -> None:

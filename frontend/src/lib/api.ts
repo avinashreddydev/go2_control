@@ -61,6 +61,44 @@ export type VoiceStatus = {
   ptt: PttStatus | null;
 };
 
+export type Quaternion = { x: number; y: number; z: number; w: number };
+
+export type RobotState3D = {
+  /** Odometry pose in the world (ROS, z-up) frame, or null without odometry. */
+  pose: {
+    position: { x: number; y: number; z: number };
+    orientation: Quaternion;
+  } | null;
+  /** Leg joint angles (rad) keyed by URDF joint name, or null when stale. */
+  joints: Record<string, number> | null;
+  at: number;
+};
+
+export type WorldObject = {
+  id: number;
+  label: string;
+  /** World (odometry) frame, metres, z up. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  distance: number;
+  confidence: number;
+  /** How the distance was measured. */
+  source: "lidar" | "ground";
+  /** How width/height were measured: lidar points' real extent, or the box. */
+  size_source: "lidar" | "camera";
+  /** Seconds since last seen. */
+  age: number;
+};
+
+export type WorldObjects = {
+  enabled: boolean;
+  available: boolean;
+  detect_ms?: number | null;
+  objects: WorldObject[];
+};
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -114,6 +152,16 @@ export const api = {
 
   speak: (text: string) =>
     post<{ ok: boolean; spoken: boolean }>("/robot/speak", { text }),
+
+  state3d: () => request<RobotState3D>("/robot/state3d"),
+  worldObjects: () => request<WorldObjects>("/world/objects"),
+  // Lidar voxel map: packed float32 x, y, z (world frame, z up). Binary, not
+  // JSON, because it is tens of thousands of points twice a second.
+  lidarPoints: async () => {
+    const res = await fetch(`${BACKEND}/lidar/points`, { cache: "no-store" });
+    if (!res.ok) throw new ApiError(res.status, res.statusText);
+    return new Float32Array(await res.arrayBuffer());
+  },
 
   voiceStatus: () => request<VoiceStatus>("/voice/status"),
   voiceListen: (enabled: boolean) =>

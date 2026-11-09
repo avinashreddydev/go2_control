@@ -39,6 +39,7 @@ from backend.services.speech import (
     wav_duration,
 )
 from backend.services.vision import YoloeDetector
+from backend.services.world import SemanticWorld
 from backend.services.chat.runner import ChatResult, respond as chat_respond
 from backend.services.chat.schema import TEXT_TOOLS
 from backend.services.vla.actions import (
@@ -63,6 +64,13 @@ class _SkipHealthLog(logging.Filter):
             and "GET /video/metrics" not in msg
             and "GET /lidar/scan" not in msg
             and "GET /robot/pose" not in msg
+            and "GET /robot/state3d" not in msg
+            and "GET /lidar/points" not in msg
+            and "GET /world/objects" not in msg
+            and "GET /vla/status" not in msg  # polled every second by navigate
+            # Polled several times a second by the dashboard
+            and "POST /teleop/key" not in msg
+            and "GET /voice/status" not in msg
         )
 
 logging.getLogger("uvicorn.access").addFilter(_SkipHealthLog())
@@ -87,6 +95,7 @@ vision = YoloeDetector()
 vla_runner: VLARunner | None = None
 listener: VoiceListener | None = None
 ptt: PushToTalk | None = None
+world: SemanticWorld | None = None
 
 MAX_CHAT_TOKENS = 8
 
@@ -219,13 +228,15 @@ def mjpeg_converter():
 @app.on_event("startup")
 def startup():
     """ Connect to the robot on Local AP and start background services """
-    global robot, vla_runner, listener, ptt
+    global robot, vla_runner, listener, ptt, world
     conn = UnitreeWebRTCConnection(WebRTCConnectionMethod.LocalAP)
     robot = RobotClient(conn)
     robot.start()
     vla_runner = VLARunner(robot, vision)
     listener = VoiceListener(robot, can_listen=_can_listen, on_command=_on_voice_command)
     ptt = PushToTalk(robot)
+    world = SemanticWorld(robot, vision)
+    world.start()
     threading.Thread(target=_voice_worker, daemon=True).start()
     if VOICE_AUTO_LISTEN:
         # Safe before the robot connects: the mic hook attaches once it does.
@@ -420,6 +431,8 @@ def _run_tool(name: str, args: dict, on_navigate=None) -> dict:
 @app.on_event("shutdown")
 def shutdown():
     """ Stop any running task, release teleop keys, and join the robot thread """
+    if world:
+        world.stop()
     if vla_runner:
         vla_runner.stop()
     if robot:
@@ -473,6 +486,57 @@ def health():
         "stream_status": stream_status,
         "vision_active": vision.active,
         "battery_soc": battery_soc,
+    }
+
+
+@app.get("/world/objects")
+def world_objects():
+    """ Detected people and things, tracked and placed in the world (odometry) frame """
+    if world is None:
+        return {"enabled": False, "available": vision.available, "objects": []}
+    return {
+        "enabled": world.enabled,
+        "available": world.available,
+        "detect_ms": world.last_run_ms,
+        "objects": world.snapshot(),
+    }
+
+
+@app.post("/world/toggle")
+def world_toggle():
+    """ Pause or resume the semantic world loop (it costs one YOLO pass per tick) """
+    if world is None:
+        return {"enabled": False, "available": vision.available}
+    world.enabled = not world.enabled
+    return {"enabled": world.enabled, "available": world.available}
+
+
+@app.get("/lidar/points")
+def lidar_points():
+    """
+    The latest lidar voxel map for the 3D view: raw little-endian float32
+    x, y, z triples (metres, world/odom frame, z up). Empty when stale.
+    """
+    pts = robot.lidar_points if robot is not None else None
+    fresh = robot is not None and robot.lidar_at is not None and time.time() - robot.lidar_at < LIDAR_STALE_SEC
+    body = pts.astype("<f4").tobytes() if pts is not None and fresh else b""
+    return Response(
+        content=body,
+        media_type="application/octet-stream",
+        headers={"Cache-Control": "no-store", "X-Point-Count": str(len(body) // 12)},
+    )
+
+
+@app.get("/robot/state3d")
+def robot_state3d():
+    """ Full odometry pose (position + quaternion) and leg joint angles for the 3D avatar """
+    if robot is None:
+        return {"pose": None, "joints": None, "at": time.time()}
+    fresh = robot.joints_at is not None and time.time() - robot.joints_at < BATTERY_STALE_SEC
+    return {
+        "pose": robot.robot_pose,
+        "joints": robot.joint_q if fresh else None,
+        "at": time.time(),
     }
 
 

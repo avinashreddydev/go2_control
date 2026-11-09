@@ -21,7 +21,9 @@ class YoloeDetector:
     def __init__(self):
         self._lock = threading.Lock()
         self.model = self._load_model()
-        self.active = self.model is not None
+        # Box overlay on the video feed: off by default, since it runs YOLO on
+        # every frame. The 3D world view runs its own lighter loop (world.py).
+        self.active = False
         self._labels: list[str] | None = None
 
     @staticmethod
@@ -41,12 +43,17 @@ class YoloeDetector:
 
     @staticmethod
     def _device():
+        """ First CUDA GPU, else Apple's MPS, else CPU """
         try:
             import torch
 
-            return 1 if torch.cuda.is_available() else "cpu"
+            if torch.cuda.is_available():
+                return 0
+            if torch.backends.mps.is_available():
+                return "mps"
         except Exception:
-            return "cpu"
+            pass
+        return "cpu"
 
     # ----- Label config -----
     def set_labels(self, labels: list[str]) -> None:
@@ -125,3 +132,18 @@ class YoloeDetector:
     def detect(self, img) -> set[str]:
         """ Run detection and return only the set of detected label names """
         return self._labels_from(self._predict(img))
+
+    def boxes(self, img) -> list[dict]:
+        """ Run detection and return every box: label, confidence, pixel x1/y1/x2/y2 """
+        result = self._predict(img)
+        if result is None or result.boxes is None:
+            return []
+        out = []
+        for box in result.boxes:
+            x1, y1, x2, y2 = (float(v) for v in box.xyxy[0].tolist())
+            out.append({
+                "label": result.names[int(box.cls)],
+                "confidence": float(box.conf),
+                "box": (x1, y1, x2, y2),
+            })
+        return out

@@ -63,15 +63,17 @@ export function useTeleop(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
 
+    // Some keydown/keyup events carry no `key` (Chrome autofill, IME, some
+    // extensions); they are not teleop presses, so ignore them.
     const onDown = (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase();
-      if (e.repeat || isTyping(e.target) || !isTeleopKey(key)) return;
+      const key = e.key?.toLowerCase();
+      if (!key || e.repeat || isTyping(e.target) || !isTeleopKey(key)) return;
       e.preventDefault();
       press(key);
     };
     const onUp = (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase();
-      if (isTeleopKey(key)) release(key);
+      const key = e.key?.toLowerCase();
+      if (key && isTeleopKey(key)) release(key);
     };
 
     window.addEventListener("keydown", onDown);

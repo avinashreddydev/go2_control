@@ -1,5 +1,5 @@
 # Core backend deps (robot WebRTC link, API, LLM, audio).
-# Optional YOLOE detection also needs: torch, ultralytics, and weights/yoloe-26s-seg-pf.pt
+# Optional YOLOE detection: uv pip install -r requirements-vision.txt, then scripts/fetch_yolo_weights.sh
 fastapi
 uvicorn[standard]
 aiortc

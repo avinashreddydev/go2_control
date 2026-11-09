@@ -1,0 +1,5 @@
+# Optional: YOLOE detection (video overlay, 3D semantic objects, VLA hints).
+# Install into the backend venv, then fetch weights with scripts/fetch_yolo_weights.sh
+torch
+torchvision
+ultralytics
