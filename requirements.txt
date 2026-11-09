@@ -1,0 +1,19 @@
+# Core backend deps (robot WebRTC link, API, LLM, audio).
+# Optional YOLOE detection also needs: torch, ultralytics, and weights/yoloe-26s-seg-pf.pt
+fastapi
+uvicorn[standard]
+aiortc
+opencv-python
+numpy
+openai
+python-dotenv
+pycryptodome
+cryptography
+curl_cffi
+lz4
+requests
+wasmtime
+sounddevice
+pydub
+packaging
+webrtcvad-wheels

@@ -1,0 +1,82 @@
+[
+    {
+      "type": "function",
+      "name": "move_forward",
+      "description": "Continuously moves the robot forward while this action is active.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "type": "function",
+      "name": "move_backward",
+      "description": "Continuously moves the robot backward while this action is active.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "type": "function",
+      "name": "strafe_left",
+      "description": "Continuously strafes the robot to the left while this action is active.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "type": "function",
+      "name": "strafe_right",
+      "description": "Continuously strafes the robot to the right while this action is active.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "type": "function",
+      "name": "turn_left",
+      "description": "Continuously rotates the robot to the left while this action is active.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "type": "function",
+      "name": "turn_right",
+      "description": "Continuously rotates the robot to the right while this action is active.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "type": "function",
+      "name": "rotateToCenterBackpack",
+      "description": "Continuously rotates the robot until the backpack is centered in the camera frame.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "type": "function",
+      "name": "stop",
+      "description": "Stops all robot motion by sending a zero-velocity command. Use this when the robot has completed a movement phase, reached the final goal, detected an emergency condition, or needs to safely pause.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    }
+  ]
