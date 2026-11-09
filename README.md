@@ -3,11 +3,54 @@
 Control stack for **Boxy**, a Unitree Go2.
 
 ```
-backend/                 FastAPI: robot WebRTC link, teleop, video, speech, VLA
+backend/                 FastAPI: robot WebRTC link, teleop, video, speech, VLA, 3D world
 unitree_webrtc_connect/  Go2 WebRTC driver (imported by the backend)
 frontend/                Next.js 16 + Tailwind 4 + shadcn/ui + Vercel AI SDK, linted by Biome
-.env                     OPENAI_API_KEY, BACKEND_URL (frontend/.env.local symlinks here)
+scripts/                 Model/weight downloaders, VLA command-line runner
+.env                     OPENAI_API_KEY and optional settings (frontend/.env.local symlinks here)
 ```
+
+## Setup (fresh clone)
+
+**Requirements:** Python 3.13, Node.js with npm, `ffmpeg` (speech audio), and
+[`uv`](https://docs.astral.sh/uv/) (recommended; `run.sh` uses it when present). The
+computer joins the Go2's Wi-Fi: the backend connects in LocalAP mode.
+
+```bash
+git clone git@github.com:avinashreddydev/go2_control.git
+cd go2_control
+
+# 1. Secrets and settings (git-ignored). The frontend reads the same file.
+echo "OPENAI_API_KEY=sk-..." > .env
+ln -s ../.env frontend/.env.local
+
+# 2. 3D models (git-ignored downloads)
+./scripts/fetch_go2_model.sh         # Go2 avatar, ~25 MB (Unitree, BSD-3)
+./scripts/fetch_object_models.sh     # object models, ~30 MB (Khronos glTF samples)
+
+# 3. Start: the first run creates .venv and installs the backend and frontend deps
+./run.sh
+
+# 4. Optional: YOLOE detection (3D semantic objects, video overlay), ~1 GB of packages
+uv pip install --python .venv/bin/python -r requirements-vision.txt
+./scripts/fetch_yolo_weights.sh      # weights/yoloe-26s-seg-pf.pt, 40 MB
+```
+
+Open http://localhost:3000. Without step 4 everything else works, and detection stays off.
+
+**Optional `.env` settings**
+
+| Variable | Default | What it does |
+|---|---|---|
+| `CHAT_MODEL` | `gpt-5-mini` | Dashboard chat model (System 2) |
+| `VLA_SYSTEM1_MODEL` / `VLA_SYSTEM1_EFFORT` | `gpt-5-mini` / `minimal` | System 1 navigation model |
+| `VOICE_AUTO_LISTEN` | `0` | `1` starts "Hey Boxy" listening at startup |
+| `CAMERA_HFOV_DEG` / `CAMERA_PITCH_DEG` | `120` / `0` | Front camera calibration for 3D object placement |
+| `BACKEND_URL` | `http://localhost:8000` | Where the frontend reaches FastAPI |
+
+**Not in git** (each is recreated by a step above): `.env`, `frontend/public/go2/`,
+`frontend/public/models/`, `weights/`, `.venv/`, `node_modules/`. Run recordings
+(`recordings/`) stay local.
 
 ## Run
 
